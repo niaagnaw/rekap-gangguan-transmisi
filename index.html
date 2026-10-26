@@ -135,6 +135,7 @@ td.dt{white-space:nowrap;font-variant-numeric:tabular-nums}
 .hv{font-family:var(--f-mono);text-align:right}
 .splitbar{display:flex;height:20px;border-radius:4px;overflow:hidden;background:var(--bg);margin:6px 0 4px}
 .splitbar i{display:block;height:100%}
+td.delc,th.delc{padding-left:20px}
 tfoot td{font-weight:700;background:var(--bg);border-top:2px solid var(--line)}
 section.page+section.page,#hasil{margin-top:20px}
 #hasil>section.page{margin:0}
@@ -381,13 +382,13 @@ function emptyAll(){return '<section class="page"><h2>Belum ada data</h2><p clas
 var DETH=['No','Tanggal & waktu mulai','Tanggal & waktu selesai','Durasi (menit)','Sebab gangguan','Internal/Eksternal','Padam/Tidak padam','Beban padam (MW)','ENS (MWh)','SRT (menit)'];
 function detRow(r,i){return [i+1,fmtDT(r.mulai),fmtDT(r.akhir),Math.round(hours(r.mulai,r.akhir)*60),r.sebab,faktorOf(r.sebab).g,r.padam?'Padam':'Tidak padam',r.padam?r.mw:0,Math.round(ens(r)*1000)/1000,Math.round(srt(r)*100)/100];}
 var DETW=[5,20,20,14,24,18,16,16,12,12];
-function detTable(rows,foot){
+function detTable(rows,foot,del){
  if(!rows.length)return '<div class="empty"><b>Tidak ada gangguan</b>Tidak ada data pada periode atau kategori yang dipilih.</div>';
- var h='<div class="tablewrap"><table><thead><tr><th class="num">No</th><th>Tanggal &amp; waktu</th><th>Sebab gangguan</th><th>Internal / eksternal</th><th>Padam / tidak</th><th class="num">Beban padam (MW)</th><th class="num">ENS (MWh)</th><th class="num">SRT (menit)</th></tr></thead><tbody>';
+ var h='<div class="tablewrap"><table><thead><tr><th class="num">No</th><th>Tanggal &amp; waktu</th><th>Sebab gangguan</th><th>Internal / eksternal</th><th>Padam / tidak</th><th class="num">Beban padam (MW)</th><th class="num">ENS (MWh)</th><th class="num">SRT (menit)</th>'+(del?'<th class="delc"></th>':'')+'</tr></thead><tbody>';
  var tE=0,tS=0,tP=0;
  rows.forEach(function(r,i){var f=faktorOf(r.sebab),e=ens(r),sr=srt(r);tE+=e;tS+=sr;if(r.padam)tP++;
-  h+='<tr><td class="num">'+(i+1)+'</td><td class="dt">'+fmtDT(r.mulai)+'<br><span style="color:var(--muted);font-size:12px">s.d. '+fmtDT(r.akhir)+' · '+fmtDur(hours(r.mulai,r.akhir))+'</span></td><td>'+esc(r.sebab)+'</td><td><span class="badge b-'+f.f+'">'+f.g+'</span></td><td><span class="badge '+(r.padam?'b-padam':'b-aman')+'">'+(r.padam?'Padam':'Tidak padam')+'</span></td><td class="num">'+(r.padam?fmtN(r.mw):'-')+'</td><td class="num">'+(r.padam?fmtN(e):'-')+'</td><td class="num">'+(r.padam?fmtN(sr,2):'-')+'</td></tr>';});
- h+='</tbody>'+(foot?'<tfoot><tr><td colspan="5">Total · '+rows.length+' gangguan, '+tP+' padam</td><td class="num">-</td><td class="num">'+fmtN(tE)+'</td><td class="num">'+fmtN(tS,2)+'</td></tr></tfoot>':'')+'</table></div>';
+  h+='<tr><td class="num">'+(i+1)+'</td><td class="dt">'+fmtDT(r.mulai)+'<br><span style="color:var(--muted);font-size:12px">s.d. '+fmtDT(r.akhir)+' · '+fmtDur(hours(r.mulai,r.akhir))+'</span></td><td>'+esc(r.sebab)+'</td><td><span class="badge b-'+f.f+'">'+f.g+'</span></td><td><span class="badge '+(r.padam?'b-padam':'b-aman')+'">'+(r.padam?'Padam':'Tidak padam')+'</span></td><td class="num">'+(r.padam?fmtN(r.mw):'-')+'</td><td class="num">'+(r.padam?fmtN(e):'-')+'</td><td class="num">'+(r.padam?fmtN(sr,2):'-')+'</td>'+(del?'<td class="delc" style="text-align:right;white-space:nowrap">'+(state.confirmDel===r.id?'<button class="btn small danger" data-act="del" data-id="'+r.id+'">Yakin hapus</button> <button class="btn small" data-act="candel">Batal</button>':'<button class="btn small" data-act="askdel" data-id="'+r.id+'">Hapus</button>')+'</td>':'')+'</tr>';});
+ h+='</tbody>'+(foot?'<tfoot><tr><td colspan="5">Total · '+rows.length+' gangguan, '+tP+' padam</td><td class="num">-</td><td class="num">'+fmtN(tE)+'</td><td class="num">'+fmtN(tS,2)+'</td>'+(del?'<td class="delc"></td>':'')+'</tr></tfoot>':'')+'</table></div>';
  return h;}
 function saveX(sheets,fname){if(!dl)return;var wb=XLSX.utils.book_new();
  sheets.forEach(function(sh){var ws=XLSX.utils.aoa_to_sheet(sh.aoa);ws['!cols']=sh.cols.map(function(w){return {wch:w}});XLSX.utils.book_append_sheet(wb,ws,sh.name.slice(0,31));});
@@ -426,7 +427,7 @@ function pRekap(mode){ensureRep();if(!state.rows.length)return emptyAll();
  var per=state.rows.filter(function(r){return inPer(r,mode)});
  return '<section class="page"><h2>Rekap Gangguan '+mode+'</h2>'+
  ctlPeriod(mode,false)+'</div>'+
- '<div class="block"><div class="head"><div><h3>'+esc(perLabel(mode))+'</h3><span style="color:var(--muted);font-size:13px">'+per.length+' gangguan</span></div>'+(per.length?dlBtn('xrek','data-m="'+mode+'"'):'')+'</div>'+detTable(per,true)+'</div>'+
+ '<div class="block"><div class="head"><div><h3>'+esc(perLabel(mode))+'</h3><span style="color:var(--muted);font-size:13px">'+per.length+' gangguan</span></div>'+(per.length?dlBtn('xrek','data-m="'+mode+'"'):'')+'</div>'+detTable(per,true,true)+'</div>'+
  '<p class="note">ENS (MWh) = beban padam (MW) × (durasi padam (menit) ÷ 60).<br>SRT (menit) = ENS × 60 ÷ beban padam (MW).<br>Gangguan tidak padam bernilai 0.</p>'+
  (dl?'':'<p class="note">Unduhan Excel tidak tersedia di tampilan ini. Buka halaman ini di claude.ai untuk mengunduh.</p>')+'</section>';}
 function exportRek(mode){var per=state.rows.filter(function(r){return inPer(r,mode)}),tE=0,tS=0,tP=0;
@@ -569,6 +570,7 @@ document.addEventListener('click',function(e){
  else if(a==='edittime'){state.err='';state.stage=1;render();window.scrollTo(0,0);}
  else if(a==='canceledit'){state.editId=null;state.draft={td:'',tj:'',ad:'',aj:'',sebab:'',padam:null,mw:''};state.err='';state.err2='';state.stage=lastRow()?3:1;render();window.scrollTo(0,0);}
  else if(a==='finish'){state.editId=null;state.stage=1;state.confirmDel=null;state.draft={td:'',tj:'',ad:'',aj:'',sebab:'',padam:null,mw:''};state.err='';state.err2='';state.page=12;render();window.scrollTo(0,0);}
+ else if(a==='candel'){state.confirmDel=null;render();}
  else if(a==='askdel'){state.confirmDel=t.dataset.id;render();}
  else if(a==='del')delRow(t.dataset.id);
  else if(a==='all'){var k=t.dataset.k;state.rows.forEach(function(r){if(!r[k]){var o={};o[k]=true;patch(r.id,o);}});}
