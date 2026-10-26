@@ -165,6 +165,7 @@ section.page>h2 .ic svg{width:18px;height:18px}
 <div class="wrap"><main id="main"></main></div>
 <div class="toast" id="toast" hidden role="status"></div>
 
+<script src="data-contoh.js"></script>
 <script>
 /* Pengganti runtime Claude untuk versi mandiri: db -> localStorage, downloads -> unduhan browser, mcp -> tidak tersedia. */
 (function(){
@@ -172,6 +173,7 @@ section.page>h2 .ic svg{width:18px;height:18px}
  var KEY='rekap-gangguan-transmisi:v1';
  function load(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return {}}}
  function save(o){try{localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
+ (function(){try{if(localStorage.getItem(KEY)===null&&window.SEED){var o={};window.SEED.forEach(function(r,i){var id='c'+String(i+1).padStart(4,'0');o[id]={id:id,mulai:r[0],akhir:r[1],sebab:r[2],padam:!!r[3],mw:r[4],short:false,long:false,createdAt:i+1};});save(o);}}catch(e){}})();
  var subs=[];
  function docs(){var o=load();return Object.keys(o).map(function(k){return o[k]});}
  function emit(){var rows=docs().sort(function(a,b){return (a.createdAt||0)-(b.createdAt||0)});

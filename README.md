@@ -11,6 +11,12 @@ Kategori faktor:
 - Internal: Alat, Sistem, Human Error, Sarana, Defisit
 - Belum diklasifikasi: Belum diketahui
 
+## Data contoh
+
+File `data-contoh.js` berisi data contoh (dummy) 327 gangguan dari 2020 sampai September 2026. Data ini hanya dimuat sekali ke browser saat pertama dibuka. Untuk memulai dari kosong, hapus isi `data-contoh.js` (ganti dengan `window.SEED=[];`).
+
+Aplikasi versi mandiri menyimpan data di localStorage browser. Hapus data situs untuk memuat ulang data contoh.
+
 ## Konfigurasi Google Sheets
 
 ID spreadsheet sengaja tidak disimpan di repo publik. Di `index.html`, cari baris:
