@@ -1,5 +1,9 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rekap Gangguan Transmisi</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: lembar kerja operator, satu kolom kerja dengan stepper 4 halaman di atas.
@@ -147,6 +151,8 @@ section.page>h2 .ic svg{width:18px;height:18px}
 .stat .k{display:flex;align-items:center;gap:6px}
 .stat .k svg{width:15px;height:15px;flex:none}
 </style>
+</head>
+<body>
 
 <header class="top"><div class="in">
   <div class="hrow"><div class="brand"><div>
@@ -159,6 +165,37 @@ section.page>h2 .ic svg{width:18px;height:18px}
 <div class="wrap"><main id="main"></main></div>
 <div class="toast" id="toast" hidden role="status"></div>
 
+<script>
+/* Pengganti runtime Claude untuk versi mandiri: db -> localStorage, downloads -> unduhan browser, mcp -> tidak tersedia. */
+(function(){
+ if(window.claude&&window.claude.use)return;
+ var KEY='rekap-gangguan-transmisi:v1';
+ function load(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return {}}}
+ function save(o){try{localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
+ var subs=[];
+ function docs(){var o=load();return Object.keys(o).map(function(k){return o[k]});}
+ function emit(){var rows=docs().sort(function(a,b){return (a.createdAt||0)-(b.createdAt||0)});
+  subs.forEach(function(cb){cb({docs:rows.map(function(r){return {data:function(){return r}}})})});}
+ function idOf(p){return String(p).split('/').pop();}
+ function docRef(id){return {
+  set:function(v){var o=load();o[id]=v;save(o);emit();return Promise.resolve();},
+  update:function(v){var o=load();o[id]=Object.assign({},o[id]||{},v);save(o);emit();return Promise.resolve();},
+  delete:function(){var o=load();delete o[id];save(o);emit();return Promise.resolve();}};}
+ var db={
+  collection:function(){return {
+   doc:function(id){return docRef(id);},
+   orderBy:function(){return {onSnapshot:function(cb){subs.push(cb);setTimeout(emit,0);return function(){};}};}};},
+  doc:function(p){return docRef(idOf(p));}};
+ var dl={save:function(x){return new Promise(function(res,rej){try{
+  var b=new Blob([x.data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=x.filename;document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);res({status:'saved'});}catch(e){rej(e);}});}};
+ window.claude={use:function(n){
+  if(n==='db')return Promise.resolve(db);
+  if(n==='downloads')return Promise.resolve(dl);
+  return Promise.reject(new Error('tidak tersedia'));}};
+})();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function(){
@@ -241,7 +278,7 @@ function renderSteps(){
   var h='';if(state.page<=3)STEPS.forEach(function(s,i){h+='<button type="button" data-go="'+(i+1)+'"'+(state.page===i+1?' aria-current="step"':'')+'><span class="t">'+s[1]+'</span></button>';});
   document.getElementById('steps').innerHTML=h;
 }
-function setStatus(){document.getElementById('status').textContent=(state.dbOk?'Data tersimpan otomatis':'Mode sementara: data hilang saat halaman ditutup')+(mcp?' · Terhubung ke Google Sheets':'')+(state.sheetState?' · '+state.sheetState:'');}
+function setStatus(){document.getElementById('status').textContent=(state.dbOk?'Data tersimpan otomatis di browser ini':'Mode sementara: data hilang saat halaman ditutup')+(mcp?' · Terhubung ke Google Sheets':'')+(state.sheetState?' · '+state.sheetState:'');}
 
 /* ---------- catat gangguan baru (halaman 1-4 jadi satu) ---------- */
 function recapHtml(){var d=state.draft,h=hours(d.td+'T'+d.tj,d.ad+'T'+d.aj);
@@ -338,7 +375,7 @@ function ctlPeriod(mode,withMode){var R=state.rep,h='<div class="toolbar">';
  else{h+='<label class="f" for="rpYear">Tahun<select id="rpYear">'+years().map(function(y){return '<option'+(y===R.year?' selected':'')+'>'+y+'</option>'}).join('')+'</select></label>';
   if(mode==='Bulanan')h+='<label class="f" for="rpMon">Bulan<select id="rpMon">'+MON.map(function(m,i){var v=String(i+1).padStart(2,'0');return '<option value="'+v+'"'+(v===R.mon?' selected':'')+'>'+m+'</option>'}).join('')+'</select></label>';}
  return h;}
-function emptyAll(){return '<section class="page"><h2>Belum ada data</h2><p class="lead">Laporan muncul setelah ada gangguan tercatat. Catat gangguan di halaman 1 dan 2, atau tunggu data dari Google Sheets selesai dimuat.</p></section>';}
+function emptyAll(){return '<section class="page"><h2>Belum ada data</h2><p class="lead">Laporan muncul setelah ada gangguan tercatat. Buka Menu, lalu pilih Input Gangguan untuk mencatat gangguan pertama.</p></section>';}
 var DETH=['No','Tanggal & waktu mulai','Tanggal & waktu selesai','Durasi (menit)','Sebab gangguan','Internal/Eksternal','Padam/Tidak padam','Beban padam (MW)','ENS (MWh)','SRT (menit)'];
 function detRow(r,i){return [i+1,fmtDT(r.mulai),fmtDT(r.akhir),Math.round(hours(r.mulai,r.akhir)*60),r.sebab,faktorOf(r.sebab).g,r.padam?'Padam':'Tidak padam',r.padam?r.mw:0,Math.round(ens(r)*1000)/1000,Math.round(srt(r)*100)/100];}
 var DETW=[5,20,20,14,24,18,16,16,12,12];
@@ -574,3 +611,5 @@ render();
 })();
 })();
 </script>
+</body>
+</html>
