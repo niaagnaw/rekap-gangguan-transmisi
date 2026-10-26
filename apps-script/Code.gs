@@ -25,7 +25,9 @@ function doGet(e) {
 function doPost(e) {
   var b;
   try { b = JSON.parse(e.postData.contents); } catch (x) { return out({ error: 'data_tidak_valid' }); }
-  if (b.pin !== PIN) return out({ error: 'pin_salah' });
+  // Input baru (append) dan pengisian tindak lanjut (kolom J) tanpa PIN; ubah/hapus butuh PIN
+  var bebas = b.action === 'append' || (b.action === 'update' && Number(b.col) === 10);
+  if (!bebas && b.pin !== PIN) return out({ error: 'pin_salah' });
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {

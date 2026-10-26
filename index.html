@@ -201,7 +201,7 @@ section.page>h2 .ic svg{width:18px;height:18px}
   function pin(){var p='';try{p=sessionStorage.getItem('rgt-pin')||'';}catch(e){}
    if(!p){p=window.prompt('Masukkan kode akses (PIN) untuk menyimpan data:')||'';try{sessionStorage.setItem('rgt-pin',p);}catch(e){}}
    return p;}
-  function post(b){b.pin=pin();
+  function post(b){var free=b.action==='append'||(b.action==='update'&&b.col===10);if(free){try{b.pin=sessionStorage.getItem('rgt-pin')||'';}catch(e){b.pin='';}}else{b.pin=pin();}
    return fetch(U,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json();},function(){throw cerr('jaringan');}).then(function(j){
     if(j.error){if(j.error==='pin_salah'){try{sessionStorage.removeItem('rgt-pin');}catch(e){}}throw cerr(j.error);}
     return j;});}
