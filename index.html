@@ -166,6 +166,7 @@ section.page>h2 .ic svg{width:18px;height:18px}
 <div class="wrap"><main id="main"></main></div>
 <div class="toast" id="toast" hidden role="status"></div>
 
+<script src="config.js"></script>
 <script src="data-contoh.js?v=2"></script>
 <script>
 /* Pengganti runtime Claude untuk versi mandiri: db -> localStorage, downloads -> unduhan browser, mcp -> tidak tersedia. */
@@ -174,7 +175,7 @@ section.page>h2 .ic svg{width:18px;height:18px}
  var KEY='rekap-gangguan-transmisi:v1';
  function load(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return {}}}
  function save(o){try{localStorage.setItem(KEY,JSON.stringify(o))}catch(e){}}
- (function(){try{if(localStorage.getItem(KEY+':seed')===null&&window.SEED){var o=load();window.SEED.forEach(function(r,i){var id='c'+String(i+1).padStart(4,'0');if(!o[id])o[id]={id:id,mulai:r[0],akhir:r[1],sebab:r[2],padam:!!r[3],mw:r[4],short:false,long:false,createdAt:i+1};});save(o);localStorage.setItem(KEY+':seed','1');}}catch(e){}})();
+ (function(){try{if(!window.APPS_URL&&localStorage.getItem(KEY+':seed')===null&&window.SEED){var o=load();window.SEED.forEach(function(r,i){var id='c'+String(i+1).padStart(4,'0');if(!o[id])o[id]={id:id,mulai:r[0],akhir:r[1],sebab:r[2],padam:!!r[3],mw:r[4],short:false,long:false,createdAt:i+1};});save(o);localStorage.setItem(KEY+':seed','1');}}catch(e){}})();
  var subs=[];
  function docs(){var o=load();return Object.keys(o).map(function(k){return o[k]});}
  function emit(){var rows=docs().sort(function(a,b){return (a.createdAt||0)-(b.createdAt||0)});
@@ -193,8 +194,27 @@ section.page>h2 .ic svg{width:18px;height:18px}
   var b=new Blob([x.data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=x.filename;document.body.appendChild(a);a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);res({status:'saved'});}catch(e){rej(e);}});}};
+
+ function mkMcp(){
+  var U=window.APPS_URL;
+  function cerr(c){var e=new Error(c);e.code=c;return e;}
+  function pin(){var p='';try{p=sessionStorage.getItem('rgt-pin')||'';}catch(e){}
+   if(!p){p=window.prompt('Masukkan kode akses (PIN) untuk menyimpan data:')||'';try{sessionStorage.setItem('rgt-pin',p);}catch(e){}}
+   return p;}
+  function post(b){b.pin=pin();
+   return fetch(U,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)}).then(function(r){return r.json();},function(){throw cerr('jaringan');}).then(function(j){
+    if(j.error){if(j.error==='pin_salah'){try{sessionStorage.removeItem('rgt-pin');}catch(e){}}throw cerr(j.error);}
+    return j;});}
+  function colN(s){var n=0;for(var i=0;i<s.length;i++)n=n*26+s.charCodeAt(i)-64;return n;}
+  return {callTool:function(srv,tool,a){
+   if(tool==='get_values')return fetch(U+(U.indexOf('?')<0?'?':'&')+'t='+Date.now()).then(function(r){return r.json();},function(){throw cerr('jaringan');}).then(function(j){return {payload:{values:j.values||[]}};});
+   if(tool==='append_row')return post({action:'append',values:a.values}).then(function(j){return {payload:{row:j.row}};});
+   if(tool==='update_values'){var m=/([A-Z]+)(\d+):([A-Z]+)(\d+)/.exec(a.range);
+    return post({action:'update',row:Number(m[2]),col:colN(m[1]),values:a.values[0]}).then(function(){return {payload:{}};});}
+   return Promise.reject(cerr('tidak_didukung'));}};}
  window.claude={use:function(n){
-  if(n==='db')return Promise.resolve(db);
+  if(n==='db')return window.APPS_URL?Promise.reject(new Error('tidak dipakai')):Promise.resolve(db);
+  if(n==='mcp'&&window.APPS_URL)return Promise.resolve(mkMcp());
   if(n==='downloads')return Promise.resolve(dl);
   return Promise.reject(new Error('tidak tersedia'));}};
 })();
@@ -249,11 +269,14 @@ var SERVER='Google Sheets',SSID='GANTI_DENGAN_ID_SPREADSHEET',TAB="'Halaman 3'!"
 function sheetVals(r){var d=hours(r.mulai,r.akhir)*60,tl=TL[r.sebab]||TL['Belum diketahui'];
   return [r.mulai.replace('T',' '),r.akhir.replace('T',' '),Math.round(d),r.sebab,faktorOf(r.sebab).g,r.padam?'Padam':'Tidak padam',r.padam?r.mw:0,Math.round(ens(r)*1000)/1000,Math.round(srt(r)*100)/100,r.short?tl[0]:'',r.long?tl[1]:''];}
 function sheetErr(e){var c=e&&e.code;
+  if(c==='pin_salah')return 'Kode akses (PIN) salah.';
+  if(c==='jaringan')return 'Tidak bisa terhubung ke database bersama.';
   if(c==='needs_reauth')return 'Hubungkan ulang Google Sheets di Settings → Connectors.';
   if(c==='server_not_connected'||c==='selection_required')return 'Tambahkan atau pilih konektor Google Sheets di Settings → Connectors.';
   if(c==='approval_required'||c==='not_in_manifest'||c==='consent_required')return 'Izin Google Sheets belum diberikan untuk aplikasi ini.';
   return 'Google Sheets belum bisa diakses ('+(c||'error')+').';}
 async function sheetAppend(r){
+  if(window.APPS_URL){var ap=await mcp.callTool(SERVER,'append_row',{values:sheetVals(r)});return ap.payload.row;}
   var g=await mcp.callTool(SERVER,'get_values',{spreadsheetId:SSID,range:TAB+'A:A'},{cache:false});
   var pl=g.payload;if(typeof pl==='string'){try{pl=JSON.parse(pl)}catch(x){pl=null}}
   var n=((pl&&pl.values)||[]).length+1;if(n<2)n=2;
@@ -281,7 +304,7 @@ function renderSteps(){
   var h='';if(state.page<=3)STEPS.forEach(function(s,i){h+='<button type="button" data-go="'+(i+1)+'"'+(state.page===i+1?' aria-current="step"':'')+'><span class="t">'+s[1]+'</span></button>';});
   document.getElementById('steps').innerHTML=h;
 }
-function setStatus(){document.getElementById('status').textContent=(state.dbOk?'Data tersimpan otomatis di browser ini':'Mode sementara: data hilang saat halaman ditutup')+(mcp?' · Terhubung ke Google Sheets':'')+(state.sheetState?' · '+state.sheetState:'');}
+function setStatus(){document.getElementById('status').textContent=(state.dbOk?'Data tersimpan otomatis di browser ini':(mcp?'Database bersama':'Mode sementara: data hilang saat halaman ditutup'))+(mcp?' · Terhubung ke Google Sheets':'')+(state.sheetState?' · '+state.sheetState:'');}
 
 /* ---------- catat gangguan baru (halaman 1-4 jadi satu) ---------- */
 function recapHtml(){var d=state.draft,h=hours(d.td+'T'+d.tj,d.ad+'T'+d.aj);
@@ -536,9 +559,10 @@ async function patch(id,obj){
 }
 async function delRow(id){
  var rr=state.rows.find(function(x){return x.id===id});state.confirmDel=null;if(!rr){render();return;}
- if(rr.imported){state.imp=state.imp.filter(function(x){return x.id!==id});}
- else if(db){try{await db.doc('gangguan/'+id).delete();}catch(e){toast('Gagal menghapus. Coba lagi.');render();return;}}
- state.dbRows=state.dbRows.filter(function(x){return x.id!==id});rebuild();
+ if(!rr.imported&&db){try{await db.doc('gangguan/'+id).delete();}catch(e){toast('Gagal menghapus. Coba lagi.');render();return;}}
+ var sr=rr.sheetRow;
+ state.imp=state.imp.filter(function(x){return x.id!==id&&!(sr&&x.sheetRow===sr)});
+ state.dbRows=state.dbRows.filter(function(x){return x.id!==id&&!(sr&&x.sheetRow===sr)});rebuild();
  state.lastId=null;state.hideLast=true;render();toast('Gangguan dihapus dari aplikasi');
  if(mcp&&rr.sheetRow){var ok=await sheetClear(rr);if(ok)toast('Gangguan dihapus dari aplikasi dan Google Sheets');}
 }
@@ -611,7 +635,7 @@ render();
   },function(){state.dbOk=false;setStatus();});
  }
  render();
- if(mcp)loadSheet();
+ if(mcp){loadSheet();if(window.APPS_URL)setInterval(loadSheet,60000);}
 })();
 })();
 </script>
